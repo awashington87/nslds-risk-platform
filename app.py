@@ -480,4 +480,4 @@ def main():
                         else:
                             st.error(message)
         
-        with col2
+        with col2:
