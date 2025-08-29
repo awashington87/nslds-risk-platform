@@ -202,6 +202,7 @@ def main():
         if st.button("🎮 Try Interactive Demo", type="primary", use_container_width=True):
             st.session_state['demo_mode'] = True
             st.success("Demo mode activated! Navigate to the Dashboard tab to see sample data.")
+            st.balloons()
     
     with tab2:
         st.header("📁 Upload NSLDS Delinquent Borrower Report")
@@ -394,21 +395,23 @@ def main():
         else:
             st.info("Process data first to access report generation.")
 
+# Footer
+def show_footer():
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center; color: #666;'>
+        <p><strong>ChartED Solutions</strong> - Advanced Analytics for Educational Success</p>
+        <p>📧 apryll@visitcharted.com | 🌐 visitcharted.com</p>
+        <p>© 2025 ChartED Solutions. All rights reserved.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
 # Initialize session state
 if 'data_processed' not in st.session_state:
     st.session_state['data_processed'] = False
 if 'demo_mode' not in st.session_state:
     st.session_state['demo_mode'] = False
 
-# Footer
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: #666;'>
-    <p><strong>ChartED Solutions</strong> - Advanced Analytics for Educational Success</p>
-    <p>📧 apryll@visitcharted.com | 🌐 visitcharted.com</p>
-    <p>© 2025 ChartED Solutions. All rights reserved.</p>
-</div>
-""", unsafe_allow_html=True)
-
 if __name__ == "__main__":
     main()
+    show_footer()
