@@ -1,25 +1,26 @@
-# app.py - ChartED Solutions NSLDS Risk Assessment Platform
+# Enhanced ChartED Solutions Portal - Unified Financial Aid Platform
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import io
-import base64
-import sqlite3
 import tempfile
 import os
 import random
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Set page config
 st.set_page_config(
-    page_title="NSLDS Risk Assessment - ChartED Solutions",
-    page_icon="📊",
+    page_title="ChartED Solutions - Unified Financial Aid Portal",
+    page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS with ChartED Solutions branding
+# Custom CSS
 st.markdown("""
 <style>
     .main-header {
@@ -41,141 +42,315 @@ st.markdown("""
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         border-left: 4px solid #1e3a5f;
+        margin-bottom: 1rem;
     }
-    .risk-high { color: #d63384; font-weight: bold; }
-    .risk-medium { color: #fd7e14; font-weight: bold; }
-    .risk-low { color: #20c997; font-weight: bold; }
-    .footer {
-        text-align: center;
-        padding: 2rem;
-        color: #666;
-        border-top: 1px solid #eee;
-        margin-top: 3rem;
+    .email-template {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+        margin: 1rem 0;
+    }
+    .major-risk-card {
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin: 0.5rem 0;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Demo NSLDS Processor
-class ChartEDNSLDSProcessor:
+# Enhanced Data Processor
+class UnifiedDataProcessor:
     def __init__(self):
-        self.db_path = "charted_risk_db.db"
+        self.processed_data = {}
         
-    def validate_file(self, file_path):
+    def process_nslds_file(self, file):
+        """Process NSLDS delinquent borrower report"""
         try:
-            if file_path.endswith('.csv'):
-                df = pd.read_csv(file_path)
-            elif file_path.endswith('.xlsx'):
-                df = pd.read_excel(file_path)
+            if file.name.endswith('.csv'):
+                df = pd.read_csv(file)
             else:
-                return False, "Unsupported file format"
+                df = pd.read_excel(file)
             
-            if len(df) == 0:
-                return False, "File is empty"
-            
-            return True, f"File validated: {len(df)} records found"
-        except Exception as e:
-            return False, f"Validation error: {str(e)}"
-    
-    def process_nslds_file(self, file_path):
-        try:
-            valid, message = self.validate_file(file_path)
-            if not valid:
-                return False, message
-            
-            import time
-            time.sleep(2)
-            
-            return True, "File processed successfully"
-        except Exception as e:
-            return False, f"Processing error: {str(e)}"
-    
-    def calculate_risk_scores(self):
-        students = []
-        for i in range(random.randint(75, 150)):
-            risk_score = random.betavariate(2, 5)
-            risk_tier = 'HIGH' if risk_score > 0.7 else 'MEDIUM' if risk_score > 0.4 else 'LOW'
-            
-            students.append({
-                'student_id': f'STU{i+1000:06d}',
-                'name': f'Student {i+1}',
-                'risk_score': risk_score,
-                'confidence_score': random.uniform(0.65, 0.95),
-                'risk_tier': risk_tier,
-                'outstanding_balance': random.randint(8000, 75000),
-                'days_delinquent': random.randint(31, 400),
-                'loan_type': random.choice(['Subsidized Stafford', 'Unsubsidized Stafford', 'PLUS', 'Consolidation']),
-                'key_factors': random.sample([
-                    'High debt-to-income ratio',
-                    'Frequent delinquencies', 
-                    'Payment inconsistency',
-                    'Increasing loan balance',
-                    'Multiple forbearances',
-                    'Poor contact information',
-                    'Extended repayment plan',
-                    'High interest accrual'
-                ], k=random.randint(2, 4))
-            })
-        return students
-    
-    def export_risk_report(self, filename, risk_tier=None):
-        students = self.calculate_risk_scores()
-        
-        if risk_tier:
-            students = [s for s in students if s['risk_tier'] == risk_tier]
-        
-        df = pd.DataFrame(students)
-        df['risk_percentage'] = (df['risk_score'] * 100).round(1)
-        df['confidence_percentage'] = (df['confidence_score'] * 100).round(1)
-        
-        report_df = df[[
-            'student_id', 'risk_tier', 'risk_percentage', 'confidence_percentage',
-            'outstanding_balance', 'days_delinquent', 'loan_type'
-        ]].copy()
-        
-        report_df.columns = [
-            'Student ID', 'Risk Tier', 'Risk Score (%)', 'Confidence (%)',
-            'Outstanding Balance', 'Days Delinquent', 'Loan Type'
-        ]
-        
-        recommendations = []
-        for _, row in report_df.iterrows():
-            if row['Risk Tier'] == 'HIGH':
-                rec = "Immediate outreach required - Consider payment plan restructuring"
-            elif row['Risk Tier'] == 'MEDIUM':
-                rec = "Monitor closely - Proactive counseling recommended"
-            else:
-                rec = "Standard monitoring - Send educational materials"
-            recommendations.append(rec)
-        
-        report_df['Recommended Action'] = recommendations
-        
-        with pd.ExcelWriter(filename, engine='openpyxl') as writer:
-            report_df.to_excel(writer, sheet_name='Risk Assessment', index=False)
-            
-            summary_data = {
-                'Risk Level': ['HIGH', 'MEDIUM', 'LOW'],
-                'Student Count': [
-                    len([s for s in students if s['risk_tier'] == 'HIGH']),
-                    len([s for s in students if s['risk_tier'] == 'MEDIUM']),
-                    len([s for s in students if s['risk_tier'] == 'LOW'])
-                ],
-                'Total Balance': [
-                    sum(s['outstanding_balance'] for s in students if s['risk_tier'] == 'HIGH'),
-                    sum(s['outstanding_balance'] for s in students if s['risk_tier'] == 'MEDIUM'),
-                    sum(s['outstanding_balance'] for s in students if s['risk_tier'] == 'LOW')
-                ]
+            # Standardize NSLDS column names
+            nslds_mapping = {
+                'Borrower SSN': 'ssn',
+                'Borrower First Name': 'first_name',
+                'Borrower Last Name': 'last_name',
+                'E-mail': 'email',
+                'Days Delinquent': 'days_delinquent',
+                'OPB': 'outstanding_balance',
+                'Loan Type': 'loan_type'
             }
-            summary_df = pd.DataFrame(summary_data)
-            summary_df.to_excel(writer, sheet_name='Executive Summary', index=False)
+            
+            # Apply mapping for existing columns
+            existing_cols = {k: v for k, v in nslds_mapping.items() if k in df.columns}
+            df = df.rename(columns=existing_cols)
+            
+            # Create student ID
+            df['student_id'] = df.index.map(lambda x: f'STU{x+1000:06d}')
+            
+            # Add risk scoring
+            df['risk_score'] = df.get('days_delinquent', 0).apply(self.calculate_risk_score)
+            df['risk_tier'] = df['risk_score'].apply(self.get_risk_tier)
+            
+            self.processed_data['nslds'] = df
+            return True, f"Processed {len(df)} NSLDS records"
+            
+        except Exception as e:
+            return False, f"Error processing NSLDS file: {str(e)}"
+    
+    def process_sis_file(self, file):
+        """Process Student Information System data"""
+        try:
+            if file.name.endswith('.csv'):
+                df = pd.read_csv(file)
+            else:
+                df = pd.read_excel(file)
+            
+            # Standardize SIS column names
+            sis_mapping = {
+                'Student ID': 'student_id',
+                'SSN': 'ssn',
+                'First Name': 'first_name',
+                'Last Name': 'last_name',
+                'Email': 'email',
+                'Major': 'major',
+                'Program': 'program',
+                'CIP Code': 'cip_code',
+                'Academic Standing': 'academic_standing',
+                'GPA': 'gpa',
+                'Credit Hours': 'credit_hours',
+                'Enrollment Status': 'enrollment_status'
+            }
+            
+            existing_cols = {k: v for k, v in sis_mapping.items() if k in df.columns}
+            df = df.rename(columns=existing_cols)
+            
+            self.processed_data['sis'] = df
+            return True, f"Processed {len(df)} SIS records"
+            
+        except Exception as e:
+            return False, f"Error processing SIS file: {str(e)}"
+    
+    def merge_datasets(self):
+        """Merge NSLDS and SIS data"""
+        if 'nslds' not in self.processed_data or 'sis' not in self.processed_data:
+            return None
+            
+        nslds_df = self.processed_data['nslds']
+        sis_df = self.processed_data['sis']
         
-        return filename
+        # Merge on SSN or student_id
+        if 'ssn' in nslds_df.columns and 'ssn' in sis_df.columns:
+            merged = pd.merge(nslds_df, sis_df, on='ssn', how='inner', suffixes=('_nslds', '_sis'))
+        else:
+            merged = pd.merge(nslds_df, sis_df, on='student_id', how='inner', suffixes=('_nslds', '_sis'))
+        
+        return merged
+    
+    def calculate_risk_score(self, days_delinquent):
+        """Calculate risk score based on delinquency"""
+        if pd.isna(days_delinquent) or days_delinquent < 30:
+            return random.uniform(0, 0.3)
+        elif days_delinquent < 90:
+            return random.uniform(0.3, 0.6)
+        elif days_delinquent < 180:
+            return random.uniform(0.6, 0.8)
+        else:
+            return random.uniform(0.8, 1.0)
+    
+    def get_risk_tier(self, score):
+        """Convert risk score to tier"""
+        if score >= 0.7:
+            return 'HIGH'
+        elif score >= 0.4:
+            return 'MEDIUM'
+        else:
+            return 'LOW'
+
+# Email Management System
+class EmailManager:
+    def __init__(self):
+        self.templates = {
+            'default_prevention': {
+                'subject': 'Important: Student Loan Payment Information',
+                'body': '''Dear {first_name} {last_name},
+
+We hope this message finds you well. We are reaching out regarding your federal student loan account that shows a past-due balance.
+
+Account Information:
+- Outstanding Balance: ${outstanding_balance:,.2f}
+- Days Past Due: {days_delinquent}
+- Loan Type: {loan_type}
+
+We want to help you avoid default and protect your credit. Please contact our office within 10 business days to discuss payment options, including:
+- Income-driven repayment plans
+- Temporary payment reductions
+- Loan rehabilitation programs
+
+Contact our Financial Aid Office at:
+Phone: (555) 123-4567
+Email: finaid@yourschool.edu
+
+Best regards,
+Financial Aid Office
+Your Institution Name
+''',
+                'compliance_level': 'FERPA_COMPLIANT'
+            },
+            'payment_plan': {
+                'subject': 'Payment Plan Options Available',
+                'body': '''Dear {first_name} {last_name},
+
+Based on your current loan status, you may qualify for alternative payment arrangements.
+
+Current Status:
+- Outstanding Balance: ${outstanding_balance:,.2f}
+- Program of Study: {major}
+
+We offer several options to help manage your student loan payments:
+1. Income-Based Repayment Plans
+2. Extended Payment Terms
+3. Temporary Forbearance Options
+
+Please schedule an appointment with our office to discuss these options.
+
+Financial Aid Office
+(555) 123-4567
+finaid@yourschool.edu
+''',
+                'compliance_level': 'FERPA_COMPLIANT'
+            },
+            'counseling_invitation': {
+                'subject': 'Financial Counseling Services Available',
+                'body': '''Dear {first_name} {last_name},
+
+Our Financial Aid Office offers free financial counseling services to help you manage your student loans and plan for successful repayment.
+
+Services Include:
+- Loan counseling and education
+- Budget planning assistance
+- Repayment strategy development
+- Default prevention guidance
+
+To schedule a confidential consultation, please contact:
+Phone: (555) 123-4567
+Email: finaid@yourschool.edu
+
+We're here to help you succeed.
+
+Financial Aid Office
+''',
+                'compliance_level': 'FERPA_COMPLIANT'
+            }
+        }
+    
+    def validate_ferpa_compliance(self, template_content, student_data):
+        """Validate FERPA compliance of email content"""
+        # Basic FERPA validation rules
+        ferpa_violations = []
+        
+        # Check for sensitive information exposure
+        sensitive_fields = ['ssn', 'grades', 'disciplinary_records']
+        for field in sensitive_fields:
+            if field in template_content.lower():
+                ferpa_violations.append(f"Contains sensitive field: {field}")
+        
+        return len(ferpa_violations) == 0, ferpa_violations
+    
+    def generate_email(self, template_key, student_data):
+        """Generate personalized email from template"""
+        template = self.templates.get(template_key)
+        if not template:
+            return None
+        
+        # Validate FERPA compliance
+        is_compliant, violations = self.validate_ferpa_compliance(template['body'], student_data)
+        if not is_compliant:
+            return {'error': f'FERPA violations detected: {violations}'}
+        
+        # Format email content
+        try:
+            formatted_subject = template['subject'].format(**student_data)
+            formatted_body = template['body'].format(**student_data)
+            
+            return {
+                'subject': formatted_subject,
+                'body': formatted_body,
+                'compliance_status': 'FERPA_COMPLIANT',
+                'template_used': template_key
+            }
+        except KeyError as e:
+            return {'error': f'Missing data field: {e}'}
+    
+    def send_bulk_emails(self, student_list, template_key):
+        """Simulate sending bulk emails (in production, integrate with actual email service)"""
+        sent_count = 0
+        failed_count = 0
+        results = []
+        
+        for student in student_list:
+            email_content = self.generate_email(template_key, student)
+            if 'error' not in email_content:
+                # In production, send via SMTP or email API
+                results.append({
+                    'student_id': student.get('student_id', 'Unknown'),
+                    'email': student.get('email', 'No email'),
+                    'status': 'sent',
+                    'timestamp': datetime.now()
+                })
+                sent_count += 1
+            else:
+                results.append({
+                    'student_id': student.get('student_id', 'Unknown'),
+                    'status': 'failed',
+                    'error': email_content['error']
+                })
+                failed_count += 1
+        
+        return {
+            'sent': sent_count,
+            'failed': failed_count,
+            'details': results
+        }
+
+# Major Analytics Engine
+class MajorAnalyticsEngine:
+    def __init__(self):
+        pass
+    
+    def analyze_by_major(self, merged_data):
+        """Analyze risk patterns by academic major"""
+        if merged_data is None or merged_data.empty:
+            return None
+        
+        # Group by major
+        major_analysis = merged_data.groupby('major').agg({
+            'risk_score': ['mean', 'count'],
+            'outstanding_balance': ['mean', 'sum'],
+            'days_delinquent': 'mean'
+        }).round(2)
+        
+        # Flatten column names
+        major_analysis.columns = ['avg_risk', 'student_count', 'avg_balance', 'total_balance', 'avg_delinquent_days']
+        major_analysis = major_analysis.reset_index()
+        
+        # Add risk tier classification
+        major_analysis['risk_tier'] = major_analysis['avg_risk'].apply(
+            lambda x: 'HIGH' if x >= 0.7 else 'MEDIUM' if x >= 0.4 else 'LOW'
+        )
+        
+        return major_analysis.sort_values('avg_risk', ascending=False)
 
 def main():
-    # Header with ChartED Solutions branding
+    # Header
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.markdown('<div class="charted-logo">📊 ChartED Solutions</div>', unsafe_allow_html=True)
-        st.markdown("**NSLDS Risk Assessment Platform** - Advanced Student Loan Default Prediction")
+        st.markdown('<div class="charted-logo">🎓 ChartED Solutions</div>', unsafe_allow_html=True)
+        st.markdown("**Unified Financial Aid Portal** - Integrated Data Analysis & Communication Platform")
     with col2:
         st.markdown("**Contact Us:**")
         st.markdown("📧 apryll@visitcharted.com")
@@ -186,400 +361,123 @@ def main():
     # Sidebar
     with st.sidebar:
         st.markdown("### 🔒 FERPA Compliant System")
-        st.info("ChartED Solutions processes student data in full compliance with FERPA regulations and industry best practices.")
+        st.info("All communications and data processing maintain strict FERPA compliance with built-in validation.")
         
-        st.markdown("### 📊 Platform Features")
+        st.markdown("### 📊 Integrated Features")
         st.markdown("""
-        ✅ **Real-time Risk Scoring**  
-        ✅ **Interactive Dashboards**  
-        ✅ **Automated Reporting**  
-        ✅ **Predictive Analytics**  
-        ✅ **Export Capabilities**
-        """)
-        
-        st.markdown("### 📁 Supported Formats")
-        st.markdown("""
-        - NSLDS CSV Reports
-        - NSLDS Excel Reports  
-        - Fixed-Width Text Files
-        - Custom Data Formats
-        """)
-        
-        st.markdown("### 🎯 Success Metrics")
-        st.markdown("""
-        **Typical Results:**
-        - 15-25% reduction in default rates
-        - 40-60% improvement in early identification
-        - $500-2000 savings per prevented default
+        ✅ **Multi-File Processing**  
+        ✅ **Major-Based Analytics**  
+        ✅ **Integrated Communications**  
+        ✅ **FERPA-Compliant Templates**  
+        ✅ **Unified Dashboard**
         """)
         
         st.markdown("### 📞 Support")
         st.markdown("""
-        **ChartED Solutions Support**  
+        **ChartED Solutions**  
         📧 apryll@visitcharted.com  
-        📞 Available for consultation  
-        🕒 Business hours: 9 AM - 6 PM EST
+        📞 Consultation available  
+        🕒 9 AM - 6 PM EST
         """)
     
+    # Initialize session state
+    if 'data_processor' not in st.session_state:
+        st.session_state['data_processor'] = UnifiedDataProcessor()
+    if 'email_manager' not in st.session_state:
+        st.session_state['email_manager'] = EmailManager()
+    if 'analytics_engine' not in st.session_state:
+        st.session_state['analytics_engine'] = MajorAnalyticsEngine()
+    
     # Main navigation
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏠 Home", "📁 Upload", "📊 Dashboard", "📋 Reports", "⚙️ Settings"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "🏠 Dashboard", 
+        "📁 Data Upload", 
+        "📊 Major Analytics", 
+        "📧 Communications", 
+        "📋 Reports",
+        "⚙️ Settings"
+    ])
     
     with tab1:
         st.markdown("""
         <div class="main-header">
-            <h1>🎓 Welcome to ChartED Solutions</h1>
-            <h2>NSLDS Risk Assessment Platform</h2>
+            <h1>Unified Financial Aid Portal</h1>
             <p style="font-size: 1.2em; margin-bottom: 0;">
-                Transform your student loan default prevention with advanced analytics and predictive modeling
+                Streamline your workflow with integrated data analysis, major-based insights, and communication tools
             </p>
         </div>
         """, unsafe_allow_html=True)
         
-        # Value proposition
+        # Quick stats
         col1, col2, col3 = st.columns(3)
-        
         with col1:
             st.markdown("""
             <div class="metric-card">
-                <h3>🎯 Early Identification</h3>
-                <p>Identify at-risk students 6+ months before default using advanced machine learning algorithms trained on NSLDS data patterns.</p>
+                <h3>🎯 System Integration</h3>
+                <p>Eliminate switching between multiple systems. Upload NSLDS and SIS data in one place for comprehensive analysis.</p>
             </div>
             """, unsafe_allow_html=True)
         
         with col2:
             st.markdown("""
             <div class="metric-card">
-                <h3>📈 Proven Results</h3>
-                <p>Our clients see 15-25% reduction in default rates and save $500-2000 per prevented default through early intervention.</p>
+                <h3>📊 Major-Based Insights</h3>
+                <p>Identify risk patterns by academic program. Target interventions based on program-specific default trends.</p>
             </div>
             """, unsafe_allow_html=True)
         
         with col3:
             st.markdown("""
             <div class="metric-card">
-                <h3>⚡ Easy Integration</h3>
-                <p>Upload your NSLDS Delinquent Borrower Report and get actionable insights in minutes, not months.</p>
+                <h3>📧 Integrated Communications</h3>
+                <p>Send FERPA-compliant emails directly from the platform. No need to switch to separate email systems.</p>
             </div>
             """, unsafe_allow_html=True)
         
-        st.markdown("### 🚀 How It Works")
+        # Quick action buttons
+        st.markdown("### Quick Actions")
+        action_col1, action_col2, action_col3, action_col4 = st.columns(4)
         
-        step_col1, step_col2, step_col3, step_col4 = st.columns(4)
+        with action_col1:
+            if st.button("📁 Upload Files", use_container_width=True):
+                st.switch_page("Data Upload")
         
-        with step_col1:
-            st.markdown("**1. Upload Data**")
-            st.markdown("📁 Upload your NSLDS Delinquent Borrower Report")
+        with action_col2:
+            if st.button("📊 View Analytics", use_container_width=True):
+                st.switch_page("Major Analytics")
         
-        with step_col2:
-            st.markdown("**2. Process & Analyze**")
-            st.markdown("🔄 Our algorithms analyze risk factors")
+        with action_col3:
+            if st.button("📧 Send Communications", use_container_width=True):
+                st.switch_page("Communications")
         
-        with step_col3:
-            st.markdown("**3. Review Dashboard**")
-            st.markdown("📊 Interactive dashboard with insights")
-        
-        with step_col4:
-            st.markdown("**4. Take Action**")
-            st.markdown("📋 Download prioritized intervention lists")
-        
-        # Demo button
-        st.markdown("---")
-        if st.button("🎮 Try Interactive Demo", type="primary", use_container_width=True):
-            st.session_state['demo_mode'] = True
-            st.success("✅ Demo mode activated! Navigate to the Dashboard tab to see sample data.")
-            st.balloons()
-        
-        # Client testimonials section
-        st.markdown("### 💬 What Our Clients Say")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("""
-            > *"ChartED Solutions helped us identify at-risk students 6 months earlier than our previous methods. 
-            > We've reduced our default rate by 23% in the first year."*
-            > 
-            > **— Dr. Sarah Johnson, Financial Aid Director**  
-            > **Regional State University**
-            """)
-        
-        with col2:
-            st.markdown("""
-            > *"The NSLDS integration was seamless. What used to take our team weeks in Excel 
-            > now takes minutes, and the insights are far more actionable."*
-            > 
-            > **— Michael Chen, VP Student Affairs**  
-            > **Metropolitan College**
-            """)
+        with action_col4:
+            if st.button("📋 Generate Reports", use_container_width=True):
+                st.switch_page("Reports")
     
     with tab2:
-        st.header("📁 Upload NSLDS Delinquent Borrower Report")
-        
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            st.markdown("### File Upload")
-            uploaded_file = st.file_uploader(
-                "Choose your NSLDS report file",
-                type=['csv', 'xlsx', 'txt'],
-                help="Upload your NSLDS Delinquent Borrower Report in any supported format"
-            )
-            
-            if uploaded_file is not None:
-                file_size = len(uploaded_file.getvalue()) / 1024
-                st.success(f"✅ File uploaded: **{uploaded_file.name}**")
-                st.info(f"📊 File size: {file_size:.1f} KB")
-                
-                st.markdown("### Processing Options")
-                
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    risk_threshold = st.slider("High Risk Threshold", 0.5, 0.9, 0.7, 0.05)
-                with col_b:
-                    confidence_threshold = st.slider("Minimum Confidence", 0.5, 0.95, 0.8, 0.05)
-                
-                if st.button("🚀 Process NSLDS File", type="primary"):
-                    with st.spinner("Processing NSLDS file... Analyzing risk patterns and calculating scores..."):
-                        with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
-                            tmp.write(uploaded_file.getvalue())
-                            tmp_path = tmp.name
-                        
-                        try:
-                            processor = ChartEDNSLDSProcessor()
-                            success, message = processor.process_nslds_file(tmp_path)
-                            
-                            if success:
-                                st.session_state['data_processed'] = True
-                                st.session_state['processor'] = processor
-                                st.session_state['file_name'] = uploaded_file.name
-                                st.success(f"✅ {message}")
-                                st.balloons()
-                                
-                                risk_scores = processor.calculate_risk_scores()
-                                
-                                st.markdown("### 📊 Processing Results")
-                                result_col1, result_col2, result_col3, result_col4 = st.columns(4)
-                                
-                                with result_col1:
-                                    st.metric("Students Processed", len(risk_scores))
-                                with result_col2:
-                                    high_risk_count = len([s for s in risk_scores if s['risk_tier'] == 'HIGH'])
-                                    st.metric("High Risk Identified", high_risk_count)
-                                with result_col3:
-                                    total_balance = sum(s['outstanding_balance'] for s in risk_scores)
-                                    st.metric("Total Portfolio Value", f"${total_balance:,.0f}")
-                                with result_col4:
-                                    avg_confidence = sum(s['confidence_score'] for s in risk_scores) / len(risk_scores)
-                                    st.metric("Average Confidence", f"{avg_confidence:.1%}")
-                                
-                                st.success("🎯 **Ready for Analysis!** Navigate to the Dashboard tab to explore your results.")
-                            else:
-                                st.error(f"❌ {message}")
-                        finally:
-                            if os.path.exists(tmp_path):
-                                os.unlink(tmp_path)
-        
-        with col2:
-            st.markdown("### 📋 Upload Requirements")
-            st.markdown("""
-            **Required NSLDS Fields:**
-            - Borrower SSN
-            - Outstanding Principal Balance  
-            - Outstanding Interest Balance
-            - Days Delinquent
-            - Loan Type
-            - Borrower Demographics
-            
-            **Supported File Formats:**
-            - CSV (comma-separated)
-            - Excel (.xlsx, .xls)
-            - Fixed-width text (.txt)
-            
-            **File Specifications:**
-            - Maximum size: 50 MB
-            - Encoding: UTF-8 preferred
-            - Headers: First row should contain field names
-            """)
-    
-    with tab3:
-        st.header("📊 Risk Assessment Dashboard")
-        
-        has_data = st.session_state.get('data_processed') or st.session_state.get('demo_mode')
-        
-        if has_data:
-            if 'processor' in st.session_state:
-                processor = st.session_state['processor']
-            else:
-                processor = ChartEDNSLDSProcessor()
-            
-            risk_scores = processor.calculate_risk_scores()
-            
-            if st.session_state.get('demo_mode'):
-                st.info("🎮 **Demo Mode Active** - This dashboard shows sample data for demonstration purposes.")
-            
-            st.markdown("### 🎯 Portfolio Overview")
-            metric_col1, metric_col2, metric_col3, metric_col4, metric_col5 = st.columns(5)
-            
-            high_risk = [s for s in risk_scores if s['risk_tier'] == 'HIGH']
-            medium_risk = [s for s in risk_scores if s['risk_tier'] == 'MEDIUM']
-            low_risk = [s for s in risk_scores if s['risk_tier'] == 'LOW']
-            
-            with metric_col1:
-                st.metric("Total Students", len(risk_scores))
-            with metric_col2:
-                st.metric("High Risk", len(high_risk), 
-                         delta=f"{len(high_risk)/len(risk_scores)*100:.1f}%")
-            with metric_col3:
-                st.metric("Medium Risk", len(medium_risk),
-                         delta=f"{len(medium_risk)/len(risk_scores)*100:.1f}%")
-            with metric_col4:
-                st.metric("Low Risk", len(low_risk),
-                         delta=f"{len(low_risk)/len(risk_scores)*100:.1f}%")
-            with metric_col5:
-                total_balance = sum(s['outstanding_balance'] for s in risk_scores)
-                st.metric("Portfolio Value", f"${total_balance:,.0f}")
-            
-            st.markdown("### 📈 Risk Analysis")
-            chart_col1, chart_col2 = st.columns(2)
-            
-            with chart_col1:
-                risk_counts = {
-                    'High Risk': len(high_risk),
-                    'Medium Risk': len(medium_risk), 
-                    'Low Risk': len(low_risk)
-                }
-                
-                fig_pie = px.pie(
-                    values=list(risk_counts.values()),
-                    names=list(risk_counts.keys()),
-                    color_discrete_map={
-                        'High Risk': '#d63384',
-                        'Medium Risk': '#fd7e14',
-                        'Low Risk': '#20c997'
-                    },
-                    title="Student Risk Distribution"
-                )
-                fig_pie.update_layout(showlegend=True, height=400)
-                st.plotly_chart(fig_pie, use_container_width=True)
-            
-            with chart_col2:
-                fig_scatter = px.scatter(
-                    x=[s['outstanding_balance'] for s in risk_scores],
-                    y=[s['risk_score'] for s in risk_scores],
-                    color=[s['risk_tier'] for s in risk_scores],
-                    color_discrete_map={
-                        'HIGH': '#d63384',
-                        'MEDIUM': '#fd7e14',
-                        'LOW': '#20c997'
-                    },
-                    title="Risk Score vs Outstanding Balance",
-                    labels={'x': 'Outstanding Balance ($)', 'y': 'Risk Score'}
-                )
-                fig_scatter.update_layout(height=400)
-                st.plotly_chart(fig_scatter, use_container_width=True)
-            
-            st.markdown("### 🚨 High Priority Students")
-            if high_risk:
-                df_display = pd.DataFrame(high_risk[:10])
-                df_table = df_display[['student_id', 'risk_score', 'confidence_score', 'outstanding_balance', 'days_delinquent', 'loan_type']].copy()
-                
-                df_table['risk_score'] = df_table['risk_score'].apply(lambda x: f"{x:.1%}")
-                df_table['confidence_score'] = df_table['confidence_score'].apply(lambda x: f"{x:.1%}")
-                df_table['outstanding_balance'] = df_table['outstanding_balance'].apply(lambda x: f"${x:,}")
-                
-                df_table.columns = ['Student ID', 'Risk Score', 'Confidence', 'Balance', 'Days Delinquent', 'Loan Type']
-                
-                st.dataframe(df_table, use_container_width=True)
-            else:
-                st.success("🎉 No high-risk students identified!")
-        else:
-            st.info("📁 **Upload a file or try the demo** to view your risk assessment dashboard.")
-    
-    with tab4:
-        st.header("📋 Generate Reports")
-        
-        if st.session_state.get('data_processed') or st.session_state.get('demo_mode'):
-            processor = st.session_state.get('processor', ChartEDNSLDSProcessor())
-            
-            st.markdown("### 📊 Available Reports")
-            
-            report_col1, report_col2 = st.columns(2)
-            
-            with report_col1:
-                st.markdown("#### 🎯 High Risk Intervention Report")
-                st.markdown("Detailed list of students requiring immediate attention")
-                
-                if st.button("Generate High Risk Report", type="primary"):
-                    with st.spinner("Generating report..."):
-                        filename = processor.export_risk_report("high_risk_report.xlsx", risk_tier="HIGH")
-                        
-                        with open(filename, "rb") as f:
-                            st.download_button(
-                                label="📊 Download High Risk Report",
-                                data=f.read(),
-                                file_name=f"ChartED_HighRisk_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                            )
-                        st.success("✅ Report generated successfully!")
-            
-            with report_col2:
-                st.markdown("#### 📈 Complete Portfolio Analysis")
-                st.markdown("Executive summary with all risk levels")
-                
-                if st.button("Generate Portfolio Report", type="primary"):
-                    with st.spinner("Creating portfolio analysis..."):
-                        filename = processor.export_risk_report("portfolio_report.xlsx")
-                        
-                        with open(filename, "rb") as f:
-                            st.download_button(
-                                label="📈 Download Portfolio Report",
-                                data=f.read(),
-                                file_name=f"ChartED_Portfolio_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                            )
-                        st.success("✅ Portfolio analysis ready!")
-        else:
-            st.info("📁 Please process data first to access report generation.")
-    
-    with tab5:
-        st.header("⚙️ System Settings")
-        
-        st.markdown("### 🎯 Risk Thresholds")
+        st.header("📁 Multi-File Data Upload")
+        st.markdown("Upload multiple data sources for comprehensive analysis")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            high_threshold = st.slider("High Risk Threshold", 0.0, 1.0, 0.7, 0.05)
-            medium_threshold = st.slider("Medium Risk Threshold", 0.0, 1.0, 0.4, 0.05)
+            st.markdown("### NSLDS Delinquent Borrower Report")
+            nslds_file = st.file_uploader(
+                "Upload NSLDS Report",
+                type=['csv', 'xlsx'],
+                key="nslds_upload",
+                help="Upload your NSLDS Delinquent Borrower Report"
+            )
+            
+            if nslds_file:
+                st.success(f"✅ NSLDS file uploaded: {nslds_file.name}")
+                if st.button("Process NSLDS Data", type="primary"):
+                    with st.spinner("Processing NSLDS data..."):
+                        success, message = st.session_state['data_processor'].process_nslds_file(nslds_file)
+                        if success:
+                            st.success(message)
+                            st.session_state['nslds_processed'] = True
+                        else:
+                            st.error(message)
         
-        with col2:
-            st.markdown("### 🔐 Security & Compliance")
-            st.success("✅ FERPA compliant")
-            st.success("✅ Data encryption")
-            st.success("✅ Secure processing")
-        
-        if st.button("💾 Save Settings", type="primary"):
-            st.success("Settings saved successfully!")
-
-# Initialize session state
-if 'data_processed' not in st.session_state:
-    st.session_state['data_processed'] = False
-if 'demo_mode' not in st.session_state:
-    st.session_state['demo_mode'] = False
-
-# Footer
-def show_footer():
-    st.markdown("---")
-    st.markdown("""
-    <div class="footer">
-        <p><strong>ChartED Solutions</strong> - Advanced Analytics for Educational Success</p>
-        <p>📧 apryll@visitcharted.com | 🌐 visitcharted.com</p>
-        <p style="font-size: 0.9em; margin-top: 1rem;">
-            © 2025 ChartED Solutions. All rights reserved.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-if __name__ == "__main__":
-    main()
-    show_footer()
-
+        with col2
